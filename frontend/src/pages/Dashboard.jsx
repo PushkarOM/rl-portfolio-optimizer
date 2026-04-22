@@ -25,7 +25,7 @@ const Dashboard = () => {
         <Card className="max-w-md">
           
           <CardHeader>
-            <CardTitle>Portfolio Summary</CardTitle>
+            <CardTitle>Portfolio Summary Changes</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-3">
