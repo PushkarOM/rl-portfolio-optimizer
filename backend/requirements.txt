@@ -9,3 +9,7 @@ numpy>=2.0
 
 celery>=5.3
 redis>=5.0
+
+yfinance
+
+pyarrow>=15.0

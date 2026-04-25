@@ -51,6 +51,10 @@ INSTALLED_APPS = [
 
 
     "dashboard",
+    "data",
+    "models_engine",
+    "training",
+    "backtest"
 ]
 
 MIDDLEWARE = [

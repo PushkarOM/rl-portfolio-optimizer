@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   backend:
+    network_mode: bridge
     build:
       context: ../backend
       dockerfile: ../docker/backend.Dockerfile
@@ -11,6 +12,7 @@ services:
       - ../backend:/app
 
   frontend:
+    network_mode: bridge
     build:
       context: ../frontend
       dockerfile: ../docker/frontend.Dockerfile
