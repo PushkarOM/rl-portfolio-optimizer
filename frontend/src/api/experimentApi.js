@@ -7,3 +7,7 @@ export const createExperiment = (data) => {
 export const getExperiments = () => {
   return apiClient.get("/experiments/")
 }
+
+export const deleteExperiment = (id) => {
+  return apiClient.delete(`/experiments/${id}/delete/`)
+}

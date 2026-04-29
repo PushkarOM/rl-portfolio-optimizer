@@ -13,7 +13,10 @@ def create_experiment(request):
 
     if serializer.is_valid():
         experiment = serializer.save()
-        return Response(ExperimentSerializer(experiment).data)
+        return Response(
+            ExperimentSerializer(experiment).data,
+            status=status.HTTP_201_CREATED  # Fix: was returning 200
+        )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -21,10 +24,13 @@ def create_experiment(request):
 @api_view(["GET"])
 def list_experiments(request):
 
-    experiments = Experiment.objects.select_related("dataset").all().order_by("-created_at")
+    experiments = (
+        Experiment.objects
+        .select_related("dataset", "model_config")  # Fix: added model_config
+        .order_by("-created_at")
+    )
 
     serializer = ExperimentSerializer(experiments, many=True)
-
     return Response(serializer.data)
 
 
@@ -32,10 +38,25 @@ def list_experiments(request):
 def experiment_detail(request, pk):
 
     try:
-        experiment = Experiment.objects.select_related("dataset").get(id=pk)
+        experiment = (
+            Experiment.objects
+            .select_related("dataset", "model_config")
+            .get(id=pk)
+        )
     except Experiment.DoesNotExist:
         return Response({"error": "Experiment not found"}, status=404)
 
     serializer = ExperimentSerializer(experiment)
-
     return Response(serializer.data)
+
+
+@api_view(["DELETE"])
+def delete_experiment(request, pk):
+
+    try:
+        experiment = Experiment.objects.get(id=pk)
+    except Experiment.DoesNotExist:
+        return Response({"error": "Experiment not found"}, status=404)
+
+    experiment.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
