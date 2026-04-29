@@ -1,6 +1,5 @@
 from django.db import models
 
-
 class ModelConfig(models.Model):
 
     ALGORITHM_CHOICES = [
@@ -11,6 +10,7 @@ class ModelConfig(models.Model):
     ]
 
     name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
 
     algorithm = models.CharField(
         max_length=20,

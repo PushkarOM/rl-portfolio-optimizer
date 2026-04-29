@@ -1,8 +1,10 @@
 from django.urls import path
-from .views import create_dataset, list_datasets, dataset_detail
+from . import views
 
 urlpatterns = [
-    path("create-dataset/", create_dataset),
-    path("datasets/", list_datasets),
-    path("dataset/<int:pk>/", dataset_detail),
+    path("datasets/", views.list_datasets),
+    path("create-dataset/", views.create_dataset),
+    path("datasets/<int:pk>/", views.dataset_detail),
+    path("datasets/<int:pk>/delete/", views.delete_dataset),
+    path("datasets/<int:pk>/preview/", views.dataset_preview),
 ]

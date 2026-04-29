@@ -12,7 +12,7 @@ function AppRouter() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/data" element={<Data />} />
-        <Route path="/model" element={<Models />} />
+        <Route path="/models" element={<Models />} />
         <Route path="/training" element={<Training />} />
         <Route path="/backtest" element={<Backtest />}/>
         <Route path="/experiments" element={<Experiments />}/>
