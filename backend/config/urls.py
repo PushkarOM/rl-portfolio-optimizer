@@ -21,7 +21,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/dashboard/", include("dashboard.urls")),
     path("api/data/", include("data.urls")),
-    path("api/models/", include("models_engine.urls")),
+    path("api/models/", include("models_app.urls")),
     path("api/training/", include("training.urls")),
-    path("api/backtest/", include("backtest.urls"))
+    path("api/backtest/", include("backtest.urls")),
+    path("api/experiments/", include("experiments.urls")),
 ]

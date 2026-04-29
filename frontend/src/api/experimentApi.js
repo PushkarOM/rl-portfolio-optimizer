@@ -1,0 +1,9 @@
+import apiClient from "./apiClient"
+
+export const createExperiment = (data) => {
+  return apiClient.post("/experiments/create/", data)
+}
+
+export const getExperiments = () => {
+  return apiClient.get("/experiments/")
+}

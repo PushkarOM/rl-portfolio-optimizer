@@ -1,15 +1,19 @@
-Django>=5.0
-djangorestframework>=3.15
-django-environ>=0.11
-django-cors-headers>=4.3
+Django==5.0.6
+djangorestframework==3.15.1
+django-environ==0.11.2
+django-cors-headers==4.4.0
 
+pandas==2.2.2
+numpy==1.26.4
 
-pandas>=2.0
-numpy>=2.0
+celery==5.3.6
+redis==5.0.4
 
-celery>=5.3
-redis>=5.0
+python-dotenv==1.0.1
 
 yfinance
-
 pyarrow>=15.0
+
+gymnasium==0.29.1
+stable-baselines3==2.3.2
+# torch in Docker File

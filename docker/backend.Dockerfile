@@ -8,8 +8,11 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.2.2 && \
+    pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the backend code
 COPY . .
 

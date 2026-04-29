@@ -52,9 +52,11 @@ INSTALLED_APPS = [
 
     "dashboard",
     "data",
-    "models_engine",
+    "models_app",
     "training",
-    "backtest"
+    "backtest",
+    "experiments",
+    "rl_envs"
 ]
 
 MIDDLEWARE = [
@@ -151,3 +153,8 @@ REST_FRAMEWORK = {
     ]
 }
 
+
+# Celery Config
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_ACCEPT_CONTENT = env.list("CELERY_ACCEPT_CONTENT", default=["json"])
+CELERY_TASK_SERIALIZER = env("CELERY_TASK_SERIALIZER")

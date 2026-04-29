@@ -4,6 +4,7 @@ import Data from "../pages/Data"
 import Models from "../pages/Models"
 import Training from "@/pages/Training"
 import Backtest from "@/pages/Backtest"
+import Experiments from "@/pages/Experiments"
 
 function AppRouter() {
   return (
@@ -14,6 +15,7 @@ function AppRouter() {
         <Route path="/model" element={<Models />} />
         <Route path="/training" element={<Training />} />
         <Route path="/backtest" element={<Backtest />}/>
+        <Route path="/experiments" element={<Experiments />}/>
       </Routes>
     </BrowserRouter>
   )

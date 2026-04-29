@@ -1,14 +1,57 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .services.training_service import start_training
+from django.utils import timezone
 
+from .services.training_service import start_training
+from .models import TrainingRun
+
+from experiments.models import Experiment
+from models_app.models import ModelConfig
+
+from .tasks import run_training_task
 
 @api_view(["POST"])
 def train_model(request):
 
-    config = request.data
+    experiment_id = request.data.get("experiment_id")
+    model_id = request.data.get("model_id")
+    parameters = request.data.get("parameters", {})
 
-    result = start_training(config)
+    experiment = Experiment.objects.get(id=experiment_id)
+    model_config = ModelConfig.objects.get(id=model_id)
 
-    return Response(result)
+    run = TrainingRun.objects.create(
+        experiment=experiment,
+        model_config=model_config,
+        parameters=parameters,
+        status="pending"
+    )
+
+    run_training_task.delay(run.id)
+
+    return Response({
+        "run_id": run.id,
+        "status": "queued"
+    })
+
+
+@api_view(["GET"])
+def list_runs(request):
+
+    runs = TrainingRun.objects.select_related(
+        "experiment", "model_config"
+    ).all().order_by("-created_at")
+
+    data = []
+
+    for r in runs:
+        data.append({
+            "id": r.id,
+            "status": r.status,
+            "model_config": r.model_config.name,
+            "experiment": r.experiment.name,
+            "result_metrics": r.result_metrics,
+        })
+
+    return Response(data)
