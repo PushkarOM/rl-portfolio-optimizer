@@ -1,57 +1,68 @@
+# views.py
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 
-from django.utils import timezone
-
-from .services.training_service import start_training
 from .models import TrainingRun
-
 from experiments.models import Experiment
 from models_app.models import ModelConfig
-
 from .tasks import run_training_task
+
 
 @api_view(["POST"])
 def train_model(request):
-
     experiment_id = request.data.get("experiment_id")
-    model_id = request.data.get("model_id")
-    parameters = request.data.get("parameters", {})
 
-    experiment = Experiment.objects.get(id=experiment_id)
-    model_config = ModelConfig.objects.get(id=model_id)
+    if not experiment_id:
+        return Response({"error": "experiment_id is required."}, status=400)
+
+    try:
+        experiment = Experiment.objects.select_related("model_config").get(id=experiment_id)
+    except Experiment.DoesNotExist:
+        return Response({"error": "Experiment not found."}, status=404)
+
+    # Model comes from the experiment — no need to pass separately
+    model_config = experiment.model_config
+
+    if model_config is None:
+        return Response({"error": "Experiment has no model config linked."}, status=400)
 
     run = TrainingRun.objects.create(
         experiment=experiment,
         model_config=model_config,
-        parameters=parameters,
+        parameters={},   # hyperparams live on model_config, not here
         status="pending"
     )
 
     run_training_task.delay(run.id)
 
-    return Response({
-        "run_id": run.id,
-        "status": "queued"
-    })
+    return Response({"run_id": run.id, "status": "queued"}, status=201)
 
 
 @api_view(["GET"])
 def list_runs(request):
-
-    runs = TrainingRun.objects.select_related(
-        "experiment", "model_config"
-    ).all().order_by("-created_at")
+    runs = (
+        TrainingRun.objects
+        .select_related("experiment", "experiment__dataset", "model_config")
+        .order_by("-created_at")
+    )
 
     data = []
-
     for r in runs:
         data.append({
-            "id": r.id,
-            "status": r.status,
-            "model_config": r.model_config.name,
-            "experiment": r.experiment.name,
-            "result_metrics": r.result_metrics,
+            "id":               r.id,
+            "status":           r.status,
+            "progress":         r.progress or 0,
+            "experiment_id":    r.experiment.id,
+            "experiment_name":  r.experiment.name,
+            "model_name":       r.model_config.name,
+            "model_algorithm":  r.model_config.algorithm,
+            "dataset_name":     r.experiment.dataset.name if r.experiment.dataset else None,
+            "result_metrics":   r.result_metrics,
+            "error_message":    r.error_message,
+            "started_at":       r.started_at,
+            "completed_at":     r.completed_at,
+            "created_at":       r.created_at,
         })
 
     return Response(data)

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, memo, useMemo} from "react"
 import { useSearchParams } from "react-router-dom"
 import {
   LineChart, Line, AreaChart, Area,
@@ -10,9 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
+import StatCard from "@/components/results/StatCard"
+import ChartCard from "@/components/results/ChartCard"
+import CustomTooltip from "@/components/results/CustomTooltip"
+
 import { getRun, getTrainingRuns } from "@/api/trainingApi"
 
-// ── helpers ────────────────────────────────────────────────────────────────
+//  helpers 
 
 const ALGO_STYLES = {
   ppo: "bg-green-500",
@@ -108,50 +112,7 @@ const computeStats = (metrics) => {
   }
 }
 
-// ── sub components ─────────────────────────────────────────────────────────
-
-const StatCard = ({ label, value, sub, positive }) => (
-  <div className="rounded-md border px-4 py-3 text-center space-y-0.5">
-    <p className="text-xs text-muted-foreground">{label}</p>
-    <p className={`text-lg font-bold font-mono ${
-      positive === true  ? "text-green-500" :
-      positive === false ? "text-red-500"   : ""
-    }`}>
-      {value}
-    </p>
-    {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-  </div>
-)
-
-const ChartCard = ({ title, children, description }) => (
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-base">{title}</CardTitle>
-      {description && (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      )}
-    </CardHeader>
-    <CardContent>
-      {children}
-    </CardContent>
-  </Card>
-)
-
-const CustomTooltip = ({ active, payload, label, prefix = "", suffix = "", decimals = 4 }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-md space-y-1">
-      <p className="text-muted-foreground">Step {label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>
-          {p.name}: {prefix}{Number(p.value).toFixed(decimals)}{suffix}
-        </p>
-      ))}
-    </div>
-  )
-}
-
-// ── main component ─────────────────────────────────────────────────────────
+//  main component 
 
 const Results = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -165,10 +126,10 @@ const Results = () => {
   const [error, setError]     = useState(null)
 
   // Derived
-  const chartData = buildChartData(run?.result_metrics)
-  const stats     = computeStats(run?.result_metrics)
+  const chartData = useMemo(() => buildChartData(run?.result_metrics), [run?.result_metrics])
+  const stats     = useMemo(() => computeStats(run?.result_metrics), [run?.result_metrics])
 
-  // ── fetch all completed runs for the selector ──────────────────────────
+  //  fetch all completed runs for the selector 
   useEffect(() => {
     getTrainingRuns().then(res => {
       const done = res.data.filter(r => r.status === "completed")
@@ -181,7 +142,7 @@ const Results = () => {
     })
   }, [])
 
-  // ── fetch selected run detail ──────────────────────────────────────────
+  //  fetch selected run detail 
   const fetchRun = useCallback(async (id) => {
     if (!id) return
     setLoading(true)
@@ -203,7 +164,7 @@ const Results = () => {
     }
   }, [selectedRunId])
 
-  // ── render ─────────────────────────────────────────────────────────────
+  //  render 
   return (
     <div className="p-6 space-y-6">
 
@@ -319,6 +280,7 @@ const Results = () => {
 
           {/* Chart 1 — Portfolio Value */}
           <ChartCard
+            height={300} 
             title="Portfolio Value"
             description="Drag on the chart to zoom into a specific range. Portfolio starts at 1.0 (100%)."
           >
@@ -360,6 +322,7 @@ const Results = () => {
 
           {/* Chart 2 — Reward */}
           <ChartCard
+            height={300} 
             title="Reward per Step"
             description="Raw reward (faint) vs 20-step smoothed reward (bold). Positive trend means the agent is improving."
           >
@@ -411,6 +374,7 @@ const Results = () => {
 
           {/* Chart 3 — Drawdown */}
           <ChartCard
+            height={300} 
             title="Drawdown"
             description="How far the portfolio dropped from its peak at each step. Closer to 0% is better."
           >
@@ -485,4 +449,4 @@ const Results = () => {
   )
 }
 
-export default Results
+export default memo(Results)
