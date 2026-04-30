@@ -1,9 +1,7 @@
+# dashboard/urls.py
 from django.urls import path
-from . import views
+from .views import dashboard_summary
 
 urlpatterns = [
-    path("summary/", views.summary),
-    path("allocation/", views.allocation),
-    path("performance/", views.performance),
-    path("recommendation/", views.recommendation),
+    path("summary/", dashboard_summary),
 ]
