@@ -158,6 +158,7 @@ def save_dataset(df, dataset_id):
     DATASETS_DIR = os.environ.get("DATASETS_DIR", "datasets")
     os.makedirs(DATASETS_DIR, exist_ok=True)
     file_path = os.path.join(DATASETS_DIR, f"dataset_{dataset_id}.parquet")
+    df.to_parquet(file_path, index=False) 
     return file_path
 
 
