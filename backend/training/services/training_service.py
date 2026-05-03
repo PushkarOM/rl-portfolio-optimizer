@@ -152,8 +152,8 @@ def start_training(run_id):
         train_env = DummyVecEnv([lambda: PortfolioEnv(train_df)])
         dev_env   = DummyVecEnv([lambda: PortfolioEnv(dev_df)])
 
-        total_timesteps   = len(train_dates) * 100
-        progress_interval = max(200_000, total_timesteps // 100)
+        total_timesteps   = len(train_dates) * 10
+        progress_interval = max(100, total_timesteps // 100)
 
         log_buffer = []
         model = AlgoClass(
