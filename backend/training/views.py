@@ -3,10 +3,10 @@ import os
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.http import FileResponse
 
 from .models import TrainingRun
 from experiments.models import Experiment
-from models_app.models import ModelConfig
 from .tasks import run_training_task
 
 
@@ -72,6 +72,7 @@ def list_runs(request):
             "experiment_name": r.experiment.name,
             "model_name":      r.model_config.name,
             "model_algorithm": r.model_config.algorithm,
+            "model_path":      r.model_path,
             "dataset_name":    r.experiment.dataset.name if r.experiment.dataset else None,
             "result_metrics":  r.result_metrics,
             "error_message":   r.error_message,
@@ -104,6 +105,7 @@ def run_detail(request, pk):
         "model_name":       run.model_config.name,
         "model_algorithm":  run.model_config.algorithm,
         "model_parameters": run.model_config.parameters,
+        "model_path":       run.model_path,
         "dataset_name":     run.experiment.dataset.name,
         "result_metrics":   metrics,
         "logs":             run.logs,
@@ -113,3 +115,18 @@ def run_detail(request, pk):
         "completed_at":     run.completed_at,
         "created_at":       run.created_at,
     })
+
+@api_view(["GET"])
+def download_model(request, pk):
+    try:
+        run = TrainingRun.objects.get(id=pk)
+    except TrainingRun.DoesNotExist:
+        return Response({"error": "Run not found."}, status=404)
+ 
+    if not run.model_path or not os.path.exists(run.model_path):
+        return Response({"error": "Model file not found. Re-train to generate it."}, status=404)
+ 
+    f = open(run.model_path, "rb")
+    response = FileResponse(f, content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="run_{pk}_{run.model_config.algorithm}.zip"'
+    return response

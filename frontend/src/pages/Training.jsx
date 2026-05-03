@@ -15,6 +15,10 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import NextStepButton from "@/components/NextPageButton"
 
+import { Download } from "lucide-react"
+
+import { downloadModel } from "@/api/trainingApi"
+
 const STATUS_STYLES = {
   pending:   "bg-gray-400",
   running:   "bg-yellow-500",
@@ -346,6 +350,12 @@ const Training = () => {
                             View Results →
                           </Button>
                         )}
+                        {run.status === "completed" && run.model_path && (
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => downloadModel(run.id)}>
+                            <Download size={14} className="mr-1" /> Download Model
+                          </Button>
+                        )}
+                        
                       </div>
                     </div>
                   )

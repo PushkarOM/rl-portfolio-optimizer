@@ -21,8 +21,8 @@ const NAV_ITEMS = [
   { label: "Models",      path: "/models",       icon: BrainCircuit     },
   { label: "Experiments", path: "/experiments",  icon: FlaskConical     },
   { label: "Training",    path: "/training",     icon: Dumbbell         },
+  { label: "Backtest",    path: "/backtest",     icon: TrendingUp,      },
   { label: "Results",     path: "/results",      icon: BarChart2        },
-  { label: "Backtest",    path: "/backtest",     icon: TrendingUp, disabled: true },
 ]
 
 const AppSidebar = () => {

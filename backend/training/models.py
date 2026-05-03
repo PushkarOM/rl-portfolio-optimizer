@@ -43,4 +43,6 @@ class TrainingRun(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    backtest_status = models.CharField(max_length=20, null=True, blank=True)
+    backtest_error  = models.TextField(null=True, blank=True)
 
