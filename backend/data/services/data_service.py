@@ -155,9 +155,9 @@ def preprocess_data(df, include_vix=True, start_date=None, end_date=None):
 
 
 def save_dataset(df, dataset_id):
-    os.makedirs("datasets", exist_ok=True)
-    file_path = f"datasets/dataset_{dataset_id}.parquet"
-    df.to_parquet(file_path, index=False)
+    DATASETS_DIR = os.environ.get("DATASETS_DIR", "datasets")
+    os.makedirs(DATASETS_DIR, exist_ok=True)
+    file_path = os.path.join(DATASETS_DIR, f"dataset_{dataset_id}.parquet")
     return file_path
 
 

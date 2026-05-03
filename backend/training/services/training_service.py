@@ -201,8 +201,9 @@ def start_training(run_id):
                 log_lines.append(captured)
 
         # Save the Final Trained Model
-        os.makedirs("models", exist_ok=True)
-        model_save_path = f"models/run_{run_id}.zip"
+        MODELS_DIR = os.environ.get("MODELS_DIR", "models")
+        os.makedirs(MODELS_DIR, exist_ok=True)
+        model_save_path = os.path.join(MODELS_DIR, f"run_{run_id}.zip")
         model.save(model_save_path)
         run.model_path = model_save_path
         run.save(update_fields=["model_path"])

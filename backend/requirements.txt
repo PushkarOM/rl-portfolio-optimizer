@@ -16,4 +16,8 @@ pyarrow>=15.0
 
 gymnasium==0.29.1
 stable-baselines3==2.3.2
+psycopg2-binary==2.9.9
 # torch in Docker File
+
+gunicorn==22.0.0
+whitenoise==6.7.0

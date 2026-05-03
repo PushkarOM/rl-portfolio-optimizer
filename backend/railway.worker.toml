@@ -1,0 +1,1 @@
+Start command: celery -A config worker --loglevel=info --concurrency=1
