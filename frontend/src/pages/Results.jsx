@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, memo, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 
+import { exportResultsCSV } from "@/utils/exportCsv"
+import { Download } from "lucide-react"
+
 import {
   LineChart, Line, AreaChart, Area,
   BarChart, Bar,
@@ -11,14 +14,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
-import StatCard    from "@/components/results/StatCard"
-import ChartCard   from "@/components/results/ChartCard"
+import StatCard      from "@/components/results/StatCard"
+import ChartCard     from "@/components/results/ChartCard"
 import CustomTooltip from "@/components/results/CustomTooltip"
+import GlossaryTip   from "@/components/GlossaryTip"
 
 import { getRun, getTrainingRuns } from "@/api/trainingApi"
 
-//  constants 
+//  constants
 
 const ALGO_STYLES = {
   ppo: "bg-green-500",
@@ -27,7 +32,7 @@ const ALGO_STYLES = {
   sac: "bg-cyan-500",
 }
 
-//  helpers 
+//  helpers
 
 const fmt = (iso) => iso
   ? new Date(iso).toLocaleString(undefined, {
@@ -44,21 +49,18 @@ const fmtDuration = (start, end) => {
   return min > 0 ? `${min}m ${sec}s` : `${sec}s`
 }
 
-// Smooth array with rolling average
 const smooth = (arr, window = 20) =>
   arr.map((_, i) => {
     const slice = arr.slice(Math.max(0, i - window), i + 1)
     return slice.reduce((a, b) => a + b, 0) / slice.length
   })
 
-// Downsample to max N points
 const downsample = (arr, max = 500) => {
   if (arr.length <= max) return arr
   const step = Math.ceil(arr.length / max)
   return arr.filter((_, i) => i % step === 0)
 }
 
-// Drawdown series from portfolio curve
 const calcDrawdown = (curve) => {
   let peak = -Infinity
   return curve.map(v => {
@@ -67,7 +69,6 @@ const calcDrawdown = (curve) => {
   })
 }
 
-// Rolling sharpe over a window
 const rollingMetric = (arr, window = 30, fn) =>
   arr.map((_, i) => {
     if (i < window) return null
@@ -81,7 +82,6 @@ const rollingSharpeFn = (slice) => {
   return std < 1e-8 ? 0 : mean / std
 }
 
-// Reward histogram buckets
 const buildHistogram = (rewards, bins = 40) => {
   if (!rewards.length) return []
   const min   = Math.min(...rewards)
@@ -93,44 +93,46 @@ const buildHistogram = (rewards, bins = 40) => {
     counts[idx]++
   })
   return counts.map((count, i) => ({
-    bin:   parseFloat((min + i * width).toFixed(5)),
+    bin:      parseFloat((min + i * width).toFixed(5)),
     count,
     positive: (min + i * width) >= 0,
   }))
 }
 
-// Build all chart data in one pass
-const buildChartData = (metrics) => {
-  if (!metrics) return {
-    combined: [], histogram: [], rollingSharpe: []
-  }
+const buildChartData = (metrics, compareMetrics = null) => {
+  if (!metrics) return { combined: [], histogram: [] }
 
   const pCurve  = metrics.portfolio_curve  ?? []
   const bCurve  = metrics.baseline_curve   ?? []
+  const bReturns  = metrics.baseline_returns ?? [] 
+  const bSharpe   = rollingMetric(bReturns, 30, rollingSharpeFn) 
   const rCurve  = metrics.reward_curve     ?? []
+  const cCurve  = compareMetrics?.portfolio_curve ?? []
   const ddCurve = calcDrawdown(pCurve)
   const rSmooth = smooth(rCurve, 20)
   const rSharpe = rollingMetric(rCurve, 30, rollingSharpeFn)
 
-  const len = Math.max(pCurve.length, rCurve.length)
+  const len = Math.max(pCurve.length, rCurve.length, cCurve.length)
 
   const raw = Array.from({ length: len }, (_, i) => ({
-    step:        i + 1,
-    portfolio:   pCurve[i]  ?? null,
-    baseline:    bCurve[i]  ?? null,
-    reward:      rCurve[i]  ?? null,
-    rSmooth:     rSmooth[i] ?? null,
-    drawdown:    ddCurve[i] ?? null,
-    rollSharpe:  rSharpe[i] ?? null,
+    step:       i + 1,
+    portfolio:  pCurve[i]  ?? null,
+    baseline:   bCurve[i]  ?? null,
+    compare:    cCurve[i]  ?? null,
+    reward:     rCurve[i]  ?? null,
+    rSmooth:    rSmooth[i] ?? null,
+    drawdown:   ddCurve[i] ?? null,
+    rollSharpe: rSharpe[i] ?? null,
+    bRollSharpe: bSharpe[i] ?? null,
   }))
 
   return {
-    combined:     downsample(raw, 500),
-    histogram:    buildHistogram(rCurve, 40),
+    combined:  downsample(raw, 500),
+    histogram: buildHistogram(rCurve, 40),
   }
 }
 
-//  main component 
+//  main component
 
 const Results = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -141,29 +143,35 @@ const Results = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
 
+  // Compare state
+  const [comparing, setComparing]           = useState(false)
+  const [compareRunId, setCompareRunId]     = useState("")
+  const [compareRun, setCompareRun]         = useState(null)
+  const [compareLoading, setCompareLoading] = useState(false)
+
   const { combined, histogram } = useMemo(
-    () => buildChartData(run?.result_metrics),
-    [run?.result_metrics]
+    () => buildChartData(run?.result_metrics, compareRun?.result_metrics),
+    [run?.result_metrics, compareRun?.result_metrics]
   )
 
-  const m = run?.result_metrics ?? {}
+  const m  = run?.result_metrics ?? {}
+  const cm = compareRun?.result_metrics ?? {}
 
-  // Pre-computed server-side metrics — read directly, no recomputation
   const stats = run ? {
-    finalValue:       m.final_portfolio_value       ?? 0,
-    finalBaseline:    m.final_baseline_value        ?? 0,
-    totalReturn:      m.total_return_pct            ?? 0,
-    baselineReturn:   m.baseline_return_pct         ?? 0,
-    vsBaseline:       (m.total_return_pct ?? 0) - (m.baseline_return_pct ?? 0),
-    sharpe:           m.sharpe_ratio                ?? 0,
-    maxDrawdown:      (m.max_drawdown ?? 0) * 100,  // stored as fraction
-    volatility:       (m.volatility   ?? 0) * 100,
-    avgReward:        m.avg_reward                  ?? 0,
-    totalSteps:       m.total_steps                 ?? 0,
-    timesteps:        m.total_timesteps_trained     ?? 0,
-    trainDays:        m.train_days                  ?? 0,
-    devDays:          m.dev_days                    ?? 0,
-    testDays:         m.test_days                   ?? 0,
+    finalValue:     m.final_portfolio_value   ?? 0,
+    finalBaseline:  m.final_baseline_value    ?? 0,
+    totalReturn:    m.total_return_pct        ?? 0,
+    baselineReturn: m.baseline_return_pct     ?? 0,
+    vsBaseline:     (m.total_return_pct ?? 0) - (m.baseline_return_pct ?? 0),
+    sharpe:         m.sharpe_ratio            ?? 0,
+    maxDrawdown:    (m.max_drawdown ?? 0) * 100,
+    volatility:     (m.volatility   ?? 0) * 100,
+    avgReward:      m.avg_reward              ?? 0,
+    totalSteps:     m.total_steps             ?? 0,
+    timesteps:      m.total_timesteps_trained ?? 0,
+    trainDays:      m.train_days              ?? 0,
+    devDays:        m.dev_days                ?? 0,
+    testDays:       m.test_days               ?? 0,
     winRate: (() => {
       const r = m.reward_curve ?? []
       return r.length > 0
@@ -172,7 +180,6 @@ const Results = () => {
     })(),
   } : null
 
-  // Fetch completed runs for selector
   useEffect(() => {
     getTrainingRuns().then(res => {
       const done = res.data.filter(r => r.status === "completed")
@@ -197,6 +204,19 @@ const Results = () => {
     }
   }, [])
 
+  const fetchCompareRun = useCallback(async (id) => {
+    if (!id) { setCompareRun(null); return }
+    setCompareLoading(true)
+    try {
+      const res = await getRun(id)
+      setCompareRun(res.data)
+    } catch {
+      setCompareRun(null)
+    } finally {
+      setCompareLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (selectedRunId) {
       setSearchParams({ run: selectedRunId })
@@ -204,22 +224,39 @@ const Results = () => {
     }
   }, [selectedRunId])
 
+  useEffect(() => {
+    fetchCompareRun(compareRunId)
+  }, [compareRunId])
+
   const hasBaseline = (m.baseline_curve ?? []).length > 0
+
+  const deltas = (comparing && compareRun) ? {
+    ret:    ((m.total_return_pct ?? 0) - (cm.total_return_pct ?? 0)).toFixed(2),
+    sharpe: ((m.sharpe_ratio    ?? 0) - (cm.sharpe_ratio    ?? 0)).toFixed(3),
+  } : null
 
   return (
     <div className="p-6 space-y-6">
 
       <h1 className="text-3xl font-bold">Results</h1>
 
-      {/*  Run selector  */}
+      {/*  Run selector card  */}
       <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <CardContent className="pt-4 space-y-3">
+
+          {/* Selectors + action buttons */}
+          <div className="flex flex-col md:flex-row gap-3 items-start md:items-end">
+
+            {/* Primary run selector */}
             <div className="flex-1 space-y-1">
               <label className="text-sm text-muted-foreground">Select Run</label>
-              <Select value={selectedRunId} onValueChange={setSelectedRunId}>
+              <Select
+                value={selectedRunId}
+                onValueChange={setSelectedRunId}
+                disabled={loading}
+              >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a completed run" />
+                  <SelectValue placeholder={loading ? "Loading..." : "Select a completed run"} />
                 </SelectTrigger>
                 <SelectContent>
                   {completedRuns.length === 0
@@ -234,21 +271,86 @@ const Results = () => {
               </Select>
             </div>
 
-            {run && (
-              <div className="flex flex-wrap gap-2 items-center text-sm">
-                <Badge className={`${ALGO_STYLES[run.model_algorithm] ?? "bg-gray-400"} text-white text-xs uppercase`}>
-                  {run.model_algorithm}
-                </Badge>
-                <span className="text-muted-foreground">{run.dataset_name}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">Started {fmt(run.started_at)}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">
-                  Duration: {fmtDuration(run.started_at, run.completed_at)}
-                </span>
+            {/* Compare selector */}
+            {comparing && (
+              <div className="flex-1 space-y-1">
+                <label className="text-sm text-muted-foreground">Compare Against</label>
+                <Select
+                  value={compareRunId}
+                  onValueChange={setCompareRunId}
+                  disabled={compareLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={compareLoading ? "Loading..." : "Select run to compare..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {completedRuns
+                      .filter(r => r.id.toString() !== selectedRunId)
+                      .map(r => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          #{r.id} — {r.experiment_name} · {r.model_name}
+                        </SelectItem>
+                      ))
+                    }
+                  </SelectContent>
+                </Select>
               </div>
             )}
+
+            {/* Action buttons */}
+            <div className="flex gap-2 shrink-0">
+              <Button
+                variant={comparing ? "default" : "outline"}
+                size="sm"
+                disabled={!run}
+                onClick={() => {
+                  setComparing(p => !p)
+                  setCompareRunId("")
+                  setCompareRun(null)
+                }}
+              >
+                Compare
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!run}
+                onClick={() => exportResultsCSV(run)}
+              >
+                <Download size={14} className="mr-1" /> Export CSV
+              </Button>
+            </div>
           </div>
+
+          {/* Run meta info */}
+          {run && (
+            <div className="flex flex-wrap gap-2 items-center text-sm">
+              <Badge className={`${ALGO_STYLES[run.model_algorithm] ?? "bg-gray-400"} text-white text-xs uppercase`}>
+                {run.model_algorithm}
+              </Badge>
+              <span className="text-muted-foreground">{run.dataset_name}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground">Started {fmt(run.started_at)}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground">
+                Duration: {fmtDuration(run.started_at, run.completed_at)}
+              </span>
+            </div>
+          )}
+
+          {/* Delta stats bar */}
+          {deltas && (
+            <div className="flex flex-wrap gap-4 text-sm pt-1 border-t">
+              <span className="text-muted-foreground">vs Run #{compareRun.id}:</span>
+              <span className={parseFloat(deltas.ret) >= 0 ? "text-green-500" : "text-red-500"}>
+                Return {parseFloat(deltas.ret) >= 0 ? "+" : ""}{deltas.ret}%
+              </span>
+              <span className={parseFloat(deltas.sharpe) >= 0 ? "text-green-500" : "text-red-500"}>
+                Sharpe {parseFloat(deltas.sharpe) >= 0 ? "+" : ""}{deltas.sharpe}
+              </span>
+            </div>
+          )}
+
         </CardContent>
       </Card>
 
@@ -288,7 +390,6 @@ const Results = () => {
           {/*  Stat cards  */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
-            {/* Row 1 — return metrics */}
             <StatCard
               label="Final Portfolio Value"
               value={`${stats.finalValue.toFixed(4)}x`}
@@ -308,27 +409,26 @@ const Results = () => {
               positive={stats.vsBaseline >= 0}
             />
             <StatCard
-              label="Win Rate"
+              label={<GlossaryTip term="Win Rate">Win Rate</GlossaryTip>}
               value={`${stats.winRate.toFixed(1)}%`}
               sub="steps with positive reward"
               positive={stats.winRate >= 50}
             />
 
-            {/* Row 2 — risk metrics */}
             <StatCard
-              label="Sharpe Ratio"
+              label={<GlossaryTip term="Sharpe Ratio">Sharpe Ratio</GlossaryTip>}
               value={stats.sharpe.toFixed(4)}
               sub="risk-adjusted return"
               positive={stats.sharpe >= 0}
             />
             <StatCard
-              label="Max Drawdown"
+              label={<GlossaryTip term="Max Drawdown">Max Drawdown</GlossaryTip>}
               value={`${stats.maxDrawdown.toFixed(2)}%`}
               sub="worst peak-to-trough"
               positive={false}
             />
             <StatCard
-              label="Volatility"
+              label={<GlossaryTip term="Volatility">Volatility</GlossaryTip>}
               value={`${stats.volatility.toFixed(4)}%`}
               sub="std of step returns"
               positive={null}
@@ -342,12 +442,12 @@ const Results = () => {
 
           </div>
 
-          {/*  Chart 1 — RL vs Baseline  */}
+          {/*  Chart 1 — RL vs Baseline (+ optional compare overlay)  */}
           <ChartCard
             title="Portfolio Value — RL Agent vs Equal-Weight Baseline"
             description={
               hasBaseline
-                ? "Blue = RL agent on test set. Gray dashed = equal-weight baseline. Both start at 1.0."
+                ? "Blue = RL agent on test set. White dashed = equal-weight baseline. Both start at 1.0."
                 : "Portfolio curve on test set. Starts at 1.0 (= initial capital)."
             }
             height={320}
@@ -382,11 +482,23 @@ const Results = () => {
                   <Line
                     type="monotone"
                     dataKey="baseline"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="#ffffff"
                     dot={false}
                     strokeWidth={1.5}
                     strokeDasharray="5 3"
                     name="Equal-Weight Baseline"
+                    connectNulls
+                  />
+                )}
+                {comparing && compareRun && (
+                  <Line
+                    type="monotone"
+                    dataKey="compare"
+                    stroke="#f59e0b"
+                    dot={false}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                    name={`Run #${compareRun.id}`}
                     connectNulls
                   />
                 )}
@@ -408,8 +520,8 @@ const Results = () => {
                 <Tooltip content={<CustomTooltip decimals={6} />} />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
                 <Brush dataKey="step" height={24} stroke="hsl(var(--border))" fill="hsl(var(--muted))" travellerWidth={8} />
-                <Line type="monotone" dataKey="reward"  stroke="#a855f7" dot={false} strokeWidth={1}   strokeOpacity={0.25} name="Raw"      connectNulls />
-                <Line type="monotone" dataKey="rSmooth" stroke="#a855f7" dot={false} strokeWidth={2.5} name="Smoothed (20)" connectNulls />
+                <Line type="monotone" dataKey="reward"  stroke="#a855f7" dot={false} strokeWidth={1}   strokeOpacity={0.25} name="Raw"           connectNulls />
+                <Line type="monotone" dataKey="rSmooth" stroke="#a855f7" dot={false} strokeWidth={2.5}                     name="Smoothed (20)" connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -417,9 +529,8 @@ const Results = () => {
           {/*  Chart 3 + 4 side by side — Drawdown + Rolling Sharpe  */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Drawdown */}
             <ChartCard
-              title="Drawdown (%)"
+              title={<GlossaryTip term="Drawdown">Drawdown (%)</GlossaryTip>}
               description="How far below peak at each step. Closer to 0% is better."
               height={260}
             >
@@ -444,9 +555,8 @@ const Results = () => {
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Rolling Sharpe */}
             <ChartCard
-              title="Rolling Sharpe Ratio (30-step)"
+              title={<GlossaryTip term="Rolling Sharpe">Rolling Sharpe Ratio (30-step)</GlossaryTip>}
               description="Consistency of risk-adjusted returns over time. Above 0 = positive risk-adjusted performance."
               height={260}
             >
@@ -464,6 +574,16 @@ const Results = () => {
                     dot={false}
                     strokeWidth={2}
                     name="Rolling Sharpe"
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bRollSharpe"
+                    stroke="#ffffff"
+                    dot={false}
+                    strokeWidth={1.5}
+                    strokeDasharray="5 3"
+                    name="Baseline Rolling Sharpe"
                     connectNulls
                   />
                 </LineChart>
@@ -489,16 +609,13 @@ const Results = () => {
                 />
                 <YAxis tick={{ fontSize: 10 }} width={40} label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 11 }} />
                 <Tooltip
-                  formatter={(val, name, props) => [val, "Count"]}
+                  formatter={(val) => [val, "Count"]}
                   labelFormatter={v => `Reward ≈ ${Number(v).toFixed(5)}`}
                 />
                 <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
                 <Bar dataKey="count" name="Count" radius={[2, 2, 0, 0]}>
                   {histogram.map((entry, i) => (
-                    <rect
-                      key={i}
-                      fill={entry.positive ? "#22c55e" : "#ef4444"}
-                    />
+                    <rect key={i} fill={entry.positive ? "#22c55e" : "#ef4444"} />
                   ))}
                 </Bar>
               </BarChart>
@@ -529,7 +646,9 @@ const Results = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {Object.entries(run.model_parameters).map(([key, val]) => (
                     <div key={key} className="rounded-md border px-3 py-2">
-                      <p className="text-xs text-muted-foreground">{key}</p>
+                      <p className="text-xs text-muted-foreground">
+                        <GlossaryTip term={key}>{key}</GlossaryTip>
+                      </p>
                       <p className="text-sm font-mono font-medium">{String(val)}</p>
                     </div>
                   ))}

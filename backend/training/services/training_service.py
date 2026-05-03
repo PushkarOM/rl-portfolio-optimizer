@@ -293,6 +293,7 @@ def start_training(run_id):
             "reward_curve":            sanitize_for_json(rewards),
             "portfolio_curve":         sanitize_for_json(portfolio_values),
             "baseline_curve":          sanitize_for_json(baseline_values),
+            "baseline_returns":        sanitize_for_json(baseline_returns.tolist()),
             "final_portfolio_value":   portfolio_values[-1],
             "final_baseline_value":    baseline_values[-1],
             "total_return_pct":        (portfolio_values[-1] - 1.0) * 100,

@@ -25,6 +25,7 @@ import {
 import { X } from "lucide-react"
 
 import NextStepButton from "@/components/NextPageButton"
+import TickerPresetDialog from "@/components/TickerPresetDialog";
 
 
 const STATUS_STYLES = {
@@ -52,6 +53,7 @@ const Data = () => {
 
   // Tag input state
   const [tickerInput, setTickerInput] = useState("")
+  const [presetOpen, setPresetOpen] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -232,6 +234,19 @@ const Data = () => {
                 onBlur={addTicker}
               />
             </div>
+            <Button className={"w-full"} variant="outline" size="sm" onClick={() => setPresetOpen(true)}>
+              Load Preset
+            </Button>
+            <TickerPresetDialog
+              open={presetOpen}
+              onOpenChange={setPresetOpen}
+              onConfirm={(tickers) => {
+                setForm(prev => ({
+                  ...prev,
+                  assets: [...new Set([...prev.assets, ...tickers])]
+                }));
+              }}
+            />
           </div>
 
           {/* Row 3 — Market + Frequency full width */}

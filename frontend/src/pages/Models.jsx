@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { createModel, getModels, deleteModel } from "@/api/modelApi"
 import NextStepButton from "@/components/NextPageButton"
+import GlossaryTip from "@/components/GlossaryTip"
 
 // Predefined parameters per algorithm with defaults
 const ALGORITHM_PARAMS = {
@@ -217,7 +218,9 @@ const Models = () => {
 
           {/* Algorithm */}
           <div className="space-y-1">
-            <label className="text-sm text-muted-foreground">Algorithm</label>
+            <label className="text-sm text-muted-foreground">
+              <GlossaryTip term="algorithm">Algorithm</GlossaryTip>
+            </label>
             <Select
               value={form.algorithm}
               onValueChange={handleAlgorithmChange}
@@ -227,7 +230,9 @@ const Models = () => {
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(ALGORITHM_LABELS).map(([val, label]) => (
-                  <SelectItem key={val} value={val}>{label}</SelectItem>
+                  <SelectItem key={val} value={val}>
+                    <GlossaryTip term={val}>{label}</GlossaryTip>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -239,7 +244,9 @@ const Models = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {currentParams.map(param => (
                 <div key={param.key} className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{param.label}</label>
+                  <label className="text-xs text-muted-foreground">
+                    <GlossaryTip term={param.key}>{param.label}</GlossaryTip>
+                  </label>
                   <Input
                     type={param.type}
                     step={param.step}
@@ -326,13 +333,12 @@ const Models = () => {
                 {visible.map(m => (
                   <div key={m.id} className="border rounded-md">
 
-                    {/* Model header row */}
                     <div className="p-4 flex flex-col md:flex-row justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold">{m.name}</p>
                           <Badge variant="outline" className="text-xs uppercase">
-                            {m.algorithm}
+                            <GlossaryTip term={m.algorithm}>{m.algorithm}</GlossaryTip>
                           </Badge>
                         </div>
 
@@ -363,7 +369,6 @@ const Models = () => {
                       </div>
                     </div>
 
-                    {/* Expanded params */}
                     {expandedId === m.id && m.parameters && (
                       <div className="px-4 pb-4 border-t pt-3">
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -372,7 +377,9 @@ const Models = () => {
                               key={key}
                               className="rounded-md border px-3 py-2"
                             >
-                              <p className="text-xs text-muted-foreground">{key}</p>
+                              <p className="text-xs text-muted-foreground">
+                                <GlossaryTip term={key}>{key}</GlossaryTip>
+                              </p>
                               <p className="text-sm font-mono font-medium">{String(val)}</p>
                             </div>
                           ))}

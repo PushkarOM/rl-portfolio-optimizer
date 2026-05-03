@@ -70,7 +70,7 @@ def dataset_preview(request, pk):
     import pandas as pd
     df = pd.read_parquet(dataset.file_path)
 
-    preview = df.head(20).round(6)
+    preview = df.tail(20).round(6)
     preview["date"] = preview["date"].astype(str)
     preview = preview.replace({np.nan: None, np.inf: None, -np.inf: None})
 
